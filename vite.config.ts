@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'url';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
@@ -60,7 +61,7 @@ function copyWasmPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), copyWasmPlugin()],
+  plugins: [react(), copyWasmPlugin(),tailwindcss(),],
   server: {
     headers: {
       // Cross-Origin Isolation — required for SharedArrayBuffer / multi-threaded WASM.

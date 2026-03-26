@@ -1,6 +1,6 @@
-# ChronicleAI - AI Dungeon Master
+# DocuMind - AI Code Documentation Generator
 
-An immersive AI-powered Dungeon Master web app built for HackXtreme. All AI inference runs **locally in your browser** using on-device LLMs via the RunAnywhere SDK. No cloud APIs. No backend. Pure client-side magic.
+An AI-powered code documentation generator built for HackXtreme. All AI inference runs **locally in your browser** using on-device LLMs via the RunAnywhere SDK. No cloud APIs. No backend. Zero data transmission.
 
 ![ChronicleAI](https://img.shields.io/badge/HackXtreme-2026-gold) ![RunAnywhere](https://img.shields.io/badge/RunAnywhere-SDK-orange) ![React](https://img.shields.io/badge/React-19-blue)
 

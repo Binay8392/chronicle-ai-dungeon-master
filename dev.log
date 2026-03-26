@@ -8,3 +8,13 @@ Port 5173 is in use, trying another one...
 
   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
 [2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m6:20:08 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m6:33:01 pm[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m6:33:01 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because lockfile has changed
+[2m6:33:01 pm[22m [36m[1m[vite][22m[39m server restarted.
+[2m6:33:03 pm[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m6:33:03 pm[22m [36m[1m[vite][22m[39m server restarted.
+[2m6:33:29 pm[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[31mfailed to load config from E:\web-starter-app\vite.config.ts[39m
+[2m6:33:29 pm[22m [31m[1m[vite][22m[39m Cannot find package '@tailwindcss/vite' imported from E:\web-starter-app\node_modules\.vite-temp\vite.config.ts.timestamp-1774530209673-af7123eab7a72.mjs
+[2m6:33:29 pm[22m [31m[1m[vite][22m[39m server restart failed

@@ -29,6 +29,8 @@ export function GameInterface({ character, theme, initialStats, onExport }: Game
   const storyRef = useRef<StoryEntry[]>([]);
   const generatingRef = useRef(false);
 
+  console.log('[DEBUG] Component render - generating:', generating, 'story length:', story.length);
+
   // Keep refs in sync with state
   useEffect(() => {
     storyRef.current = story;
@@ -170,6 +172,7 @@ export function GameInterface({ character, theme, initialStats, onExport }: Game
       cancelRef.current = null;
       setGenerating(false);
       generatingRef.current = false;
+      console.log('[DEBUG] State reset - generating:', false, 'generatingRef:', generatingRef.current);
     }
   };
 
@@ -216,12 +219,28 @@ export function GameInterface({ character, theme, initialStats, onExport }: Game
     onExport(story);
   };
 
+  const handleReset = () => {
+    console.log('[DEBUG] Manual reset triggered');
+    setGenerating(false);
+    generatingRef.current = false;
+    cancelRef.current = null;
+  };
+
   return (
     <div className="game-container">
       <div className="game-main">
         <header className="game-header">
           <h1 className="game-title">ChronicleAI</h1>
           <div className="game-controls">
+            {generating && (
+              <button 
+                className="btn-icon"
+                onClick={handleReset}
+                title="Force reset (if stuck)"
+              >
+                🔄
+              </button>
+            )}
             <button 
               className={`btn-icon ${ttsEnabled ? 'active' : ''}`}
               onClick={() => setTtsEnabled(!ttsEnabled)}

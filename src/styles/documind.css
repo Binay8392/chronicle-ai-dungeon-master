@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* DocuMind Custom Styles */
+
+/* Markdown output styling */
+.markdown-output {
+  max-width: none;
+  line-height: 1.75;
+}
+
+.markdown-output h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #1f2937;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.markdown-output h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.markdown-output table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.markdown-output th {
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.markdown-output td {
+  border: 1px solid #d1d5db;
+  padding: 0.75rem 1rem;
+}
+
+.markdown-output pre {
+  background-color: #f3f4f6;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.markdown-output code {
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.875rem;
+  font-family: 'Courier New', monospace;
+}
+
+.markdown-output pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-output ul, .markdown-output ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-output li {
+  margin-bottom: 0.5rem;
+}
