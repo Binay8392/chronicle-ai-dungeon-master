@@ -274,3 +274,4 @@ MIT License - Built for educational purposes.
 **Ready to embark on your adventure?** ⚔️🗡️🛡️
 
 Run `npm run dev` and let the ChronicleAI Dungeon Master guide your journey!
+# chronicle-ai-dungeon-master
