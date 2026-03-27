@@ -1,206 +1,191 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ModelCategory } from '@runanywhere/web';
 import { TextGeneration } from '@runanywhere/web-llamacpp';
 import { useModelLoader } from '../hooks/useModelLoader';
 import { useVoice } from '../hooks/useVoice';
 import { StoryLog } from './StoryLog';
 import { StatsPanel } from './StatsPanel';
-import type { Character, WorldTheme, GameStats, StoryEntry } from '../types/game';
-import { createDMSystemPrompt, parseStatChanges, applyStatChanges } from '../utils/dm';
+import type { Character, GameStats, StoryEntry, WorldTheme } from '../types/game';
+import {
+  applyStatChanges,
+  createDMSystemPrompt,
+  enforceDMResponseRules,
+  parseStatChanges,
+} from '../utils/dm';
 
 interface GameInterfaceProps {
   character: Character;
   theme: WorldTheme;
   initialStats: GameStats;
+  initialStory?: StoryEntry[];
   onExport: (story: StoryEntry[]) => void;
+  onProgress?: (stats: GameStats, story: StoryEntry[]) => void;
+  onNewAdventure?: () => void;
 }
 
-export function GameInterface({ character, theme, initialStats, onExport }: GameInterfaceProps) {
+function areStatsEqual(a: GameStats, b: GameStats): boolean {
+  if (a.health !== b.health || a.maxHealth !== b.maxHealth || a.gold !== b.gold) return false;
+  if (a.inventory.length !== b.inventory.length) return false;
+  return a.inventory.every((item, index) => item === b.inventory[index]);
+}
+
+export function GameInterface({
+  character,
+  theme,
+  initialStats,
+  initialStory = [],
+  onExport,
+  onProgress,
+  onNewAdventure,
+}: GameInterfaceProps) {
   const loader = useModelLoader(ModelCategory.Language);
   const voice = useVoice();
+
   const [stats, setStats] = useState<GameStats>(initialStats);
-  const [story, setStory] = useState<StoryEntry[]>([]);
+  const [story, setStory] = useState<StoryEntry[]>(initialStory);
   const [input, setInput] = useState('');
   const [generating, setGenerating] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+
   const cancelRef = useRef<(() => void) | null>(null);
-  const systemPromptRef = useRef<string>('');
-  const hasGeneratedOpening = useRef(false);
-  const storyRef = useRef<StoryEntry[]>([]);
+  const storyRef = useRef<StoryEntry[]>(initialStory);
+  const statsRef = useRef<GameStats>(initialStats);
   const generatingRef = useRef(false);
+  const systemPromptRef = useRef('');
 
-  console.log('[DEBUG] Component render - generating:', generating, 'story length:', story.length);
-
-  // Keep refs in sync with state
   useEffect(() => {
     storyRef.current = story;
   }, [story]);
 
   useEffect(() => {
+    statsRef.current = stats;
+  }, [stats]);
+
+  useEffect(() => {
     generatingRef.current = generating;
   }, [generating]);
 
-  // Initialize system prompt but don't auto-generate opening
   useEffect(() => {
-    if (systemPromptRef.current) return; // Already initialized
-    
-    systemPromptRef.current = createDMSystemPrompt(character, theme, stats);
-    
-    // Add a welcome message instead of auto-generating
-    const welcomeEntry: StoryEntry = {
-      role: 'dm',
-      text: `Welcome, ${character.name} the ${character.race} ${character.class}! Your adventure in this ${theme} world is about to begin. What would you like to do?`,
-      timestamp: Date.now(),
-    };
-    setStory([welcomeEntry]);
-    storyRef.current = [welcomeEntry];
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    systemPromptRef.current = createDMSystemPrompt(character, theme, statsRef.current);
 
-  const generateDMResponse = async (playerAction: string, isOpening = false) => {
-    console.log('[DEBUG] generateDMResponse called', { playerAction, isOpening, generating: generatingRef.current });
-    
-    if (generatingRef.current) {
-      console.log('[DEBUG] Already generating, returning');
-      return;
+    if (storyRef.current.length === 0) {
+      const opening: StoryEntry = {
+        role: 'dm',
+        text: enforceDMResponseRules(
+          `${character.name}, moonlight strikes the shattered gates of Blackthorn Keep while undead sentries prowl the walls. You hear chained prisoners crying beneath the courtyard and a war drum rising from the crypt below.`,
+          statsRef.current,
+        ),
+        timestamp: Date.now(),
+      };
+      setStory([opening]);
+      storyRef.current = [opening];
     }
+  }, [character, theme]);
 
-    console.log('[DEBUG] Starting generation');
+  useEffect(() => {
+    onProgress?.(stats, story);
+  }, [stats, story, onProgress]);
+
+  const handleCancelGeneration = () => {
+    cancelRef.current?.();
+    cancelRef.current = null;
+    generatingRef.current = false;
+    setGenerating(false);
+  };
+
+  const generateDMResponse = async (playerAction: string) => {
+    if (generatingRef.current) return;
+
     setGenerating(true);
     generatingRef.current = true;
 
     try {
-      // Add player action to story (unless it's the opening)
-      if (!isOpening) {
-        const playerEntry: StoryEntry = {
-          role: 'player',
-          text: playerAction,
-          timestamp: Date.now(),
-        };
-        setStory(prev => [...prev, playerEntry]);
-        storyRef.current = [...storyRef.current, playerEntry];
-        console.log('[DEBUG] Added player entry to story');
+      const playerEntry: StoryEntry = {
+        role: 'player',
+        text: playerAction,
+        timestamp: Date.now(),
+      };
+
+      const nextStoryWithPlayer = [...storyRef.current, playerEntry];
+      setStory(nextStoryWithPlayer);
+      storyRef.current = nextStoryWithPlayer;
+
+      let contextPrompt = `${systemPromptRef.current}\n\n`;
+      for (const entry of nextStoryWithPlayer.slice(-10)) {
+        contextPrompt += `${entry.role === 'dm' ? 'Dungeon Master' : 'Player'}: ${entry.text}\n\n`;
       }
+      contextPrompt += 'Dungeon Master:';
 
-      // Build conversation context using the ref
-      let contextPrompt = systemPromptRef.current + '\n\n';
-      
-      // Add recent story history (last 10 entries to keep context manageable)
-      const recentStory = storyRef.current.slice(-10);
-      for (const entry of recentStory) {
-        if (entry.role === 'dm') {
-          contextPrompt += `Dungeon Master: ${entry.text}\n\n`;
-        } else {
-          contextPrompt += `Player: ${entry.text}\n\n`;
-        }
-      }
+      const { stream, result, cancel } = await TextGeneration.generateStream(contextPrompt, {
+        maxTokens: 280,
+        temperature: 0.85,
+      });
 
-      // Add current player action
-      if (!isOpening) {
-        contextPrompt += `Player: ${playerAction}\n\nDungeon Master:`;
-      } else {
-        contextPrompt += `Dungeon Master:`;
-      }
-
-      console.log('[DEBUG] Context prompt length:', contextPrompt.length);
-      console.log('[DEBUG] Calling TextGeneration.generateStream');
-
-      const { stream, result: resultPromise, cancel } = await TextGeneration.generateStream(
-        contextPrompt,
-        {
-          maxTokens: 256,
-          temperature: 0.85,
-        }
-      );
       cancelRef.current = cancel;
 
-      console.log('[DEBUG] Stream started, reading tokens...');
-
-      let accumulated = '';
+      let streamedText = '';
       for await (const token of stream) {
-        accumulated += token;
+        streamedText += token;
       }
 
-      console.log('[DEBUG] Stream complete, accumulated:', accumulated.length, 'chars');
+      const resolved = await result;
+      const rawText = (resolved.text || streamedText || '').trim();
 
-      const result = await resultPromise;
-      const responseText = result.text || accumulated;
+      const parsedChanges = parseStatChanges(rawText);
+      const updatedStats = applyStatChanges(statsRef.current, parsedChanges);
 
-      console.log('[DEBUG] Response text:', responseText.substring(0, 100));
+      if (!areStatsEqual(updatedStats, statsRef.current)) {
+        statsRef.current = updatedStats;
+        setStats(updatedStats);
+      }
 
-      // Add DM response to story
+      systemPromptRef.current = createDMSystemPrompt(character, theme, updatedStats);
+
+      const compliantResponse = enforceDMResponseRules(rawText, updatedStats);
       const dmEntry: StoryEntry = {
         role: 'dm',
-        text: responseText,
+        text: compliantResponse,
         timestamp: Date.now(),
       };
-      setStory(prev => [...prev, dmEntry]);
-      storyRef.current = [...storyRef.current, dmEntry];
 
-      console.log('[DEBUG] Added DM response to story');
+      const nextStory = [...storyRef.current, dmEntry];
+      setStory(nextStory);
+      storyRef.current = nextStory;
 
-      // Parse and apply stat changes
-      const changes = parseStatChanges(responseText);
-      if (Object.keys(changes).length > 0) {
-        console.log('[DEBUG] Stat changes detected:', changes);
-        setStats(prev => {
-          const newStats = applyStatChanges(prev, changes);
-          // Update system prompt with new stats
-          systemPromptRef.current = createDMSystemPrompt(character, theme, newStats);
-          return newStats;
-        });
-      }
-
-      // TTS narration if enabled
       if (ttsEnabled && voice.ttsReady) {
-        console.log('[DEBUG] Speaking response via TTS');
-        await voice.speak(responseText);
+        await voice.speak(compliantResponse);
       }
-      
-    } catch (err) {
-      console.error('[DEBUG] DM generation error:', err);
-      const errorEntry: StoryEntry = {
+    } catch {
+      const fallback: StoryEntry = {
         role: 'dm',
-        text: 'The Dungeon Master momentarily loses focus... Try again.',
+        text: enforceDMResponseRules(
+          'A violent gust kills the torchlight and armored footsteps close in from every corridor.',
+          statsRef.current,
+        ),
         timestamp: Date.now(),
       };
-      setStory(prev => [...prev, errorEntry]);
-      storyRef.current = [...storyRef.current, errorEntry];
+      const nextStory = [...storyRef.current, fallback];
+      setStory(nextStory);
+      storyRef.current = nextStory;
     } finally {
-      console.log('[DEBUG] Generation complete, resetting state');
       cancelRef.current = null;
-      setGenerating(false);
       generatingRef.current = false;
-      console.log('[DEBUG] State reset - generating:', false, 'generatingRef:', generatingRef.current);
+      setGenerating(false);
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSend = async (event: React.FormEvent) => {
+    event.preventDefault();
     const action = input.trim();
-    console.log('[DEBUG] handleSend called', { action, generating: generatingRef.current, loaderState: loader.state });
-    
-    if (!action || generatingRef.current) {
-      console.log('[DEBUG] Skipping send - no action or already generating');
-      return;
-    }
+    if (!action || generatingRef.current) return;
 
-    // Ensure model is loaded before generating
     if (loader.state !== 'ready') {
-      console.log('[DEBUG] Model not ready, ensuring load...');
-      const ok = await loader.ensure();
-      if (!ok) {
-        console.log('[DEBUG] Model load failed');
-        return;
-      }
-      console.log('[DEBUG] Model loaded successfully');
+      const ready = await loader.ensure();
+      if (!ready) return;
     }
 
     setInput('');
-    console.log('[DEBUG] Calling generateDMResponse');
     await generateDMResponse(action);
-    console.log('[DEBUG] generateDMResponse completed');
   };
 
   const handleVoiceClick = async () => {
@@ -211,72 +196,71 @@ export function GameInterface({ character, theme, initialStats, onExport }: Game
 
     const transcript = await voice.startRecording();
     if (transcript && transcript.trim()) {
-      setInput(transcript);
+      setInput(transcript.trim());
     }
-  };
-
-  const handleExport = () => {
-    onExport(story);
-  };
-
-  const handleReset = () => {
-    console.log('[DEBUG] Manual reset triggered');
-    setGenerating(false);
-    generatingRef.current = false;
-    cancelRef.current = null;
   };
 
   return (
     <div className="game-container">
       <div className="game-main">
+        <div className="game-graphics" aria-hidden="true">
+          <div className="moon-disc" />
+          <div className="fog-layer fog-layer-one" />
+          <div className="fog-layer fog-layer-two" />
+          <div className="castle-silhouette" />
+        </div>
         <header className="game-header">
-          <h1 className="game-title">ChronicleAI</h1>
+          <div>
+            <h1 className="game-title">ChronicleAI</h1>
+            <p className="game-subtitle">
+              {character.name} the {character.race} {character.class} in a {theme.replace('-', ' ')} realm
+            </p>
+          </div>
+
           <div className="game-controls">
             {generating && (
-              <button 
-                className="btn-icon"
-                onClick={handleReset}
-                title="Force reset (if stuck)"
-              >
-                🔄
+              <button className="btn-icon" onClick={handleCancelGeneration} title="Cancel generation">
+                Stop
               </button>
             )}
-            <button 
+            <button
               className={`btn-icon ${ttsEnabled ? 'active' : ''}`}
-              onClick={() => setTtsEnabled(!ttsEnabled)}
+              onClick={() => setTtsEnabled((prev) => !prev)}
               title="Toggle voice narration"
             >
-              🔊
+              Voice
             </button>
-            <button 
-              className="btn-icon"
-              onClick={handleExport}
-              title="Export story"
-              disabled={story.length === 0}
-            >
-              📥
+            <button className="btn-icon" onClick={() => onExport(story)} title="Export story" disabled={story.length === 0}>
+              Export
             </button>
+            {onNewAdventure && (
+              <button className="btn-icon" onClick={onNewAdventure} title="Start new adventure">
+                New
+              </button>
+            )}
           </div>
         </header>
 
         {loader.state === 'downloading' || loader.state === 'loading' ? (
-          <div className="chronicle-loading">
-            <h1>Loading AI Dungeon Master...</h1>
+          <div className="chronicle-loading panel-loading">
+            <h1>Preparing Dungeon Master</h1>
             <div className="chronicle-spinner" />
             {loader.state === 'downloading' && (
-              <p className="subtitle">{Math.round(loader.progress * 100)}% downloaded</p>
+              <p className="subtitle">Model download: {Math.round(loader.progress * 100)}%</p>
             )}
           </div>
         ) : loader.state === 'error' ? (
-          <div className="chronicle-loading">
-            <h1>Error</h1>
+          <div className="chronicle-loading panel-loading">
+            <h1>Model Error</h1>
             <p className="subtitle">{loader.error}</p>
-            <button className="btn-adventure" onClick={loader.ensure}>Retry</button>
+            <button className="btn-adventure" onClick={loader.ensure}>
+              Retry Load
+            </button>
           </div>
         ) : (
           <>
             <StoryLog story={story} />
-            
+
             <form className="player-input" onSubmit={handleSend}>
               <div className="input-row">
                 <button
@@ -286,22 +270,18 @@ export function GameInterface({ character, theme, initialStats, onExport }: Game
                   title="Voice input"
                   disabled={generating}
                 >
-                  🎙️
+                  Mic
                 </button>
                 <input
                   type="text"
                   className="action-input"
-                  placeholder="What do you do?"
+                  placeholder={`What does ${character.name} do next?`}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(event) => setInput(event.target.value)}
                   disabled={generating}
                 />
-                <button 
-                  type="submit" 
-                  className="btn-send"
-                  disabled={!input.trim() || generating}
-                >
-                  {generating ? 'Generating...' : 'Send'}
+                <button type="submit" className="btn-send" disabled={!input.trim() || generating}>
+                  {generating ? 'Narrating...' : 'Act'}
                 </button>
               </div>
             </form>

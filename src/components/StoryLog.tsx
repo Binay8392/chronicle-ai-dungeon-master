@@ -7,61 +7,62 @@ interface StoryLogProps {
 
 export function StoryLog({ story }: StoryLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
+  const lastAnimatedTimestampRef = useRef<number | null>(null);
   const [typingIndex, setTypingIndex] = useState<number | null>(null);
   const [displayText, setDisplayText] = useState('');
 
-  // Auto-scroll to bottom when new entries are added
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [story.length, displayText]);
 
-  // Typing animation for the latest DM entry
   useEffect(() => {
     if (story.length === 0) return;
 
-    const lastEntry = story[story.length - 1];
-    
-    // Only animate DM responses, not player actions
-    if (lastEntry.role === 'dm' && typingIndex !== story.length - 1) {
-      setTypingIndex(story.length - 1);
-      setDisplayText('');
+    const lastIndex = story.length - 1;
+    const lastEntry = story[lastIndex];
 
-      let currentIndex = 0;
-      const text = lastEntry.text;
-      const speed = 30; // milliseconds per character
+    if (lastEntry.role !== 'dm') return;
+    if (lastAnimatedTimestampRef.current === lastEntry.timestamp) return;
 
-      const interval = setInterval(() => {
-        if (currentIndex < text.length) {
-          setDisplayText(text.slice(0, currentIndex + 1));
-          currentIndex++;
-        } else {
-          clearInterval(interval);
-          setTypingIndex(null);
-        }
-      }, speed);
+    lastAnimatedTimestampRef.current = lastEntry.timestamp;
+    setTypingIndex(lastIndex);
+    setDisplayText('');
 
-      return () => clearInterval(interval);
-    }
-  }, [story, typingIndex]);
+    let cursor = 0;
+    const text = lastEntry.text;
+    const interval = setInterval(() => {
+      if (cursor < text.length) {
+        setDisplayText(text.slice(0, cursor + 1));
+        cursor += 1;
+      } else {
+        clearInterval(interval);
+        setTypingIndex(null);
+      }
+    }, 18);
+
+    return () => clearInterval(interval);
+  }, [story]);
 
   return (
     <div className="story-log" ref={logRef}>
-      {story.map((entry, idx) => {
-        const isTyping = idx === typingIndex;
+      {story.map((entry, index) => {
+        const isTyping = index === typingIndex;
         const text = isTyping ? displayText : entry.text;
+        const speaker = entry.role === 'dm' ? 'Dungeon Master' : 'Aragorn';
 
         return (
-          <div key={idx} className={`story-entry ${entry.role}`}>
-            <div className="entry-label">
-              {entry.role === 'dm' ? 'Dungeon Master' : 'You'}
+          <article key={entry.timestamp} className={`story-entry ${entry.role}`}>
+            <div className="entry-meta">
+              <span className="entry-label">{speaker}</span>
+              <time className="entry-time">{new Date(entry.timestamp).toLocaleTimeString()}</time>
             </div>
-            <div className="entry-text">
+            <p className="entry-text">
               {text}
               {isTyping && <span className="typing-cursor" />}
-            </div>
-          </div>
+            </p>
+          </article>
         );
       })}
     </div>

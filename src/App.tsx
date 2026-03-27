@@ -1,158 +1,153 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { initSDK } from './runanywhere';
-import { TextGeneration } from '@runanywhere/web-llamacpp';
-import { ModelLoader } from './components/ModelLoader';
-import { CodeEditor } from './components/CodeEditor';
-import { DocumentationOutput } from './components/DocumentationOutput';
-import { createDocumentationPrompt } from './utils/documentation';
-import type { CodeLanguage } from './types/documind';
+import { WorldSetup } from './components/WorldSetup';
+import { GameInterface } from './components/GameInterface';
+import type { Character, GameState, GameStats, StoryEntry, WorldTheme } from './types/game';
+import { DEFAULT_STATS } from './types/game';
 
-const DEFAULT_CODE = `// Paste your code here or try the example below
+const STORAGE_KEY = 'chronicleai.save.v1';
 
-function calculateTotal(items, taxRate = 0.08) {
-  const subtotal = items.reduce((sum, item) => {
-    return sum + (item.price * item.quantity);
-  }, 0);
-  
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
-  
+function buildFreshState(): GameState {
   return {
-    subtotal,
-    tax,
-    total
+    character: { name: 'Aragorn', race: 'elf', class: 'warrior' },
+    theme: 'fantasy',
+    stats: { ...DEFAULT_STATS },
+    story: [],
+    initialized: false,
   };
-}`;
+}
+
+function isValidSavedState(value: unknown): value is GameState {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<GameState>;
+  return !!(
+    candidate.character &&
+    candidate.theme &&
+    candidate.stats &&
+    Array.isArray(candidate.story) &&
+    typeof candidate.initialized === 'boolean'
+  );
+}
+
+function loadSavedState(): GameState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isValidSavedState(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function exportStory(character: Character, theme: WorldTheme, story: StoryEntry[]): void {
+  const divider = '='.repeat(60);
+  const lines = [
+    divider,
+    'ChronicleAI Adventure Log',
+    divider,
+    '',
+    `Character: ${character.name}`,
+    `Race: ${character.race}`,
+    `Class: ${character.class}`,
+    `World: ${theme}`,
+    '',
+    divider,
+    '',
+    ...story.flatMap((entry) => {
+      const speaker = entry.role === 'dm' ? 'Dungeon Master' : 'Player';
+      const stamp = new Date(entry.timestamp).toLocaleString();
+      return [`[${stamp}] ${speaker}:`, entry.text, ''];
+    }),
+  ];
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${character.name.toLowerCase()}-chronicle.txt`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export function App() {
   const [sdkReady, setSdkReady] = useState(false);
-  const [modelReady, setModelReady] = useState(false);
-  const [code, setCode] = useState(DEFAULT_CODE);
-  const [language, setLanguage] = useState<CodeLanguage>('javascript');
-  const [documentation, setDocumentation] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [sdkError, setSdkError] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState>(() => loadSavedState() ?? buildFreshState());
 
-  // Initialize SDK
   useEffect(() => {
     initSDK()
       .then(() => setSdkReady(true))
       .catch((err) => {
-        console.error('SDK init failed:', err);
+        setSdkError(err instanceof Error ? err.message : 'Unknown error');
       });
   }, []);
 
-  // Generate documentation using RunAnywhere LLM
-  const handleGenerateDocs = async () => {
-    if (!code.trim() || !modelReady) return;
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+  }, [gameState]);
 
-    setIsGenerating(true);
-    setDocumentation('');
+  const handleBegin = useCallback((character: Character, theme: WorldTheme) => {
+    setGameState({
+      character,
+      theme,
+      stats: { ...DEFAULT_STATS },
+      story: [],
+      initialized: true,
+    });
+  }, []);
 
-    try {
-      const prompt = createDocumentationPrompt(code, language);
-      
-      // Use TextGeneration.generateStream for streaming
-      const { stream, result } = await TextGeneration.generateStream(prompt, {
-        temperature: 0.3,
-        maxTokens: 512,  // Reduced for faster generation; docs are concise
-        topP: 0.9,
-      });
+  const handleProgress = useCallback((stats: GameStats, story: StoryEntry[]) => {
+    setGameState((prev) => {
+      if (prev.stats === stats && prev.story === story) return prev;
+      return { ...prev, stats, story, initialized: true };
+    });
+  }, []);
 
-      // Stream the response
-      let fullResponse = '';
-      for await (const token of stream) {
-        fullResponse += token;
-        setDocumentation(fullResponse);
-      }
+  const handleNewAdventure = useCallback(() => {
+    setGameState(buildFreshState());
+  }, []);
 
-      // Wait for final result
-      await result;
+  const handleExport = useCallback((story: StoryEntry[]) => {
+    exportStory(gameState.character, gameState.theme, story);
+  }, [gameState.character, gameState.theme]);
 
-    } catch (err) {
-      console.error('Documentation generation failed:', err);
-      setDocumentation(`# Error\n\nFailed to generate documentation: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Show ModelLoader if SDK is ready but model is not
-  if (sdkReady && !modelReady) {
-    return <ModelLoader onReady={() => setModelReady(true)} />;
-  }
-
-  // Show loading screen while SDK initializes
-  if (!sdkReady) {
+  if (!sdkReady && !sdkError) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-600">Initializing DocuMind...</p>
+      <div className="chronicle-loading">
+        <h1>ChronicleAI</h1>
+        <div className="chronicle-spinner" />
+        <p className="subtitle">Summoning your on-device Dungeon Master...</p>
       </div>
     );
   }
 
-  // Main application UI
+  if (sdkError) {
+    return (
+      <div className="chronicle-loading">
+        <h1>Arcane Failure</h1>
+        <p className="subtitle">{sdkError}</p>
+        <button className="btn-adventure" onClick={() => window.location.reload()}>
+          Reload Chronicle
+        </button>
+      </div>
+    );
+  }
+
+  if (!gameState.initialized) {
+    return <WorldSetup onBegin={handleBegin} />;
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-screen-2xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">📝</div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">DocuMind</h1>
-              <p className="text-sm text-gray-500 italic">Your code. Your docs. Your device.</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
-              ✓ Model Ready
-            </span>
-            <button
-              onClick={handleGenerateDocs}
-              disabled={isGenerating || !code.trim()}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
-              {isGenerating ? 'Generating...' : 'Generate Docs'}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content - Two Panel Layout */}
-      <main className="flex-1 overflow-hidden">
-        <div className="max-w-screen-2xl mx-auto h-full px-6 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-            {/* Left Panel - Code Editor */}
-            <div className="h-full min-h-[400px]">
-              <CodeEditor
-                code={code}
-                language={language}
-                onCodeChange={setCode}
-                onLanguageChange={setLanguage}
-              />
-            </div>
-
-            {/* Right Panel - Documentation Output */}
-            <div className="h-full min-h-[400px]">
-              <DocumentationOutput
-                documentation={documentation}
-                isGenerating={isGenerating}
-              />
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-3">
-        <div className="max-w-screen-2xl mx-auto px-6">
-          <p className="text-center text-xs text-gray-500">
-            Powered by RunAnywhere SDK • All AI runs locally in your browser • No data transmission
-          </p>
-        </div>
-      </footer>
-    </div>
+    <GameInterface
+      character={gameState.character}
+      theme={gameState.theme}
+      initialStats={gameState.stats}
+      initialStory={gameState.story}
+      onExport={handleExport}
+      onProgress={handleProgress}
+      onNewAdventure={handleNewAdventure}
+    />
   );
 }
