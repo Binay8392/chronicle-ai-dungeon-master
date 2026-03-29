@@ -6,12 +6,18 @@ interface StatsPanelProps {
 }
 
 export function StatsPanel({ character, stats }: StatsPanelProps) {
-  const healthPercent = (stats.health / stats.maxHealth) * 100;
+  const healthPercent = Math.max(0, Math.min(100, (stats.health / stats.maxHealth) * 100));
 
   const getHealthClass = () => {
     if (healthPercent > 60) return 'high';
     if (healthPercent > 30) return 'mid';
     return 'low';
+  };
+
+  const getHealthStatusLabel = () => {
+    if (healthPercent > 60) return 'Stable';
+    if (healthPercent > 30) return 'Wounded';
+    return 'Critical';
   };
 
   return (
@@ -40,9 +46,17 @@ export function StatsPanel({ character, stats }: StatsPanelProps) {
               {stats.health} / {stats.maxHealth}
             </span>
           </div>
-          <div className="health-bar">
+          <div
+            className="health-bar"
+            role="progressbar"
+            aria-label="Health"
+            aria-valuemin={0}
+            aria-valuemax={stats.maxHealth}
+            aria-valuenow={stats.health}
+          >
             <div className={`health-fill ${getHealthClass()}`} style={{ width: `${healthPercent}%` }} />
           </div>
+          <p className="health-state">Condition: {getHealthStatusLabel()}</p>
         </div>
       </div>
 
@@ -55,7 +69,9 @@ export function StatsPanel({ character, stats }: StatsPanelProps) {
       </div>
 
       <div className="stats-section">
-        <h3 className="stats-title">Inventory</h3>
+        <h3 className="stats-title">
+          Inventory <span className="stats-count">{stats.inventory.length}</span>
+        </h3>
         <div className="inventory-list">
           {stats.inventory.length === 0 ? (
             <p className="inventory-empty">No relics claimed yet</p>

@@ -54,6 +54,13 @@ body::before {
   z-index: -1;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(244, 212, 140, 0.92);
+  outline-offset: 2px;
+}
+
 h1,
 h2,
 h3,
@@ -260,10 +267,66 @@ label {
   gap: 14px;
 }
 
+.setup-preview {
+  margin-top: 4px;
+  border: 1px solid rgba(215, 173, 102, 0.22);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(18, 13, 11, 0.46);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-preview h3 {
+  font-size: 0.84rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+}
+
+.setup-preview p {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.setup-preview strong {
+  color: var(--text-muted);
+}
+
+.setup-submit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-submit-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.form-inline-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.form-help {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.name-counter {
+  color: var(--accent-gold);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
 }
 
 .form-label {
@@ -342,9 +405,11 @@ label {
 .game-container {
   height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 340px);
   gap: 14px;
   padding: 14px;
+  max-width: 1920px;
+  margin: 0 auto;
 }
 
 .game-main {
@@ -435,13 +500,40 @@ label {
   color: var(--text-muted);
   font-size: 0.88rem;
   text-transform: capitalize;
+  line-height: 1.35;
+}
+
+.game-meta {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-pill {
+  border: 1px solid rgba(212, 175, 90, 0.22);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(18, 14, 13, 0.48);
+}
+
+.meta-pill.active {
+  color: #2a180b;
+  border-color: rgba(232, 199, 131, 0.58);
+  background: linear-gradient(145deg, #e3c57e, #b18139);
 }
 
 .game-controls {
   display: flex;
   gap: 8px;
+  row-gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .btn-icon {
@@ -455,6 +547,7 @@ label {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .btn-icon.active {
@@ -480,6 +573,24 @@ label {
       transparent 2px,
       transparent 6px
     );
+}
+
+.story-log-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(212, 175, 90, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(44, 32, 23, 0.88), rgba(22, 17, 14, 0.88));
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 .story-entry {
@@ -564,6 +675,62 @@ label {
   align-items: center;
 }
 
+.input-row .action-input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.quick-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-chip {
+  border: 1px solid rgba(212, 175, 90, 0.2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-main);
+  background: linear-gradient(160deg, rgba(52, 39, 31, 0.8), rgba(31, 23, 19, 0.92));
+  white-space: nowrap;
+}
+
+.quick-chip:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.quick-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-meta {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.voice-inline-error {
+  margin-top: 10px;
+  color: #ff9d83;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.voice-inline-hint {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .btn-voice {
   width: 52px;
   height: 46px;
@@ -593,15 +760,17 @@ label {
 }
 
 .btn-send {
-  min-width: 90px;
+  min-width: 128px;
   height: 46px;
+  padding: 0 16px;
   border-radius: 12px;
   background: linear-gradient(140deg, #e0bf72, #a97935 52%, #855725);
   color: #241308;
   font-size: 0.75rem;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .stats-panel {
@@ -631,6 +800,16 @@ label {
   font-size: 0.74rem;
 }
 
+.stats-count {
+  margin-left: 6px;
+  color: var(--text-main);
+  font-size: 0.7rem;
+  border: 1px solid rgba(212, 175, 90, 0.28);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(20, 15, 12, 0.45);
+}
+
 .character-info {
   display: grid;
   gap: 6px;
@@ -647,6 +826,12 @@ label {
   font-size: 0.84rem;
   color: var(--text-muted);
   margin-bottom: 6px;
+}
+
+.health-state {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .health-bar {
@@ -705,6 +890,7 @@ label {
   padding: 7px 10px;
   background: rgba(13, 10, 10, 0.48);
   font-size: 0.9rem;
+  word-break: break-word;
 }
 
 .inventory-empty {
@@ -761,9 +947,35 @@ label {
   }
 }
 
+@media (max-width: 1200px) {
+  .game-container {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+
+  .quick-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: thin;
+  }
+
+  .quick-chip {
+    flex: 0 0 auto;
+  }
+}
+
 @media (max-width: 1080px) {
   .game-container {
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+
+  .btn-icon {
+    min-width: 64px;
+    padding: 0 12px;
+  }
+
+  .btn-send {
+    min-width: 118px;
   }
 }
 
@@ -794,29 +1006,159 @@ label {
   .game-header {
     flex-direction: column;
     align-items: flex-start;
+    padding: 14px 14px 12px;
+    gap: 10px;
   }
 
   .game-controls {
     width: 100%;
     justify-content: flex-start;
   }
+
+  .game-subtitle {
+    font-size: 0.82rem;
+  }
+
+  .story-log {
+    padding: 12px;
+  }
+
+  .player-input {
+    padding: 10px 12px 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .input-row {
+    display: grid;
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .btn-send {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+  }
+
+  .btn-voice {
+    width: 66px;
+    height: 44px;
+  }
 }
 
 @media (max-width: 640px) {
+  .world-setup {
+    padding: 12px;
+    align-items: flex-start;
+  }
+
+  .setup-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .setup-card-head {
+    margin-bottom: 14px;
+  }
+
+  .setup-grid {
+    gap: 12px;
+  }
+
+  .setup-lore,
+  .setup-form {
+    padding: 12px;
+  }
+
+  .setup-kicker {
+    font-size: 0.68rem;
+  }
+
+  .setup-card .tagline {
+    font-size: 0.94rem;
+  }
+
   .stats-panel {
     grid-template-columns: 1fr;
   }
 
   .input-row {
-    flex-wrap: wrap;
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+
+  .quick-actions {
+    gap: 6px;
+    padding-bottom: 2px;
+  }
+
+  .quick-chip {
+    font-size: 0.62rem;
+    padding: 6px 9px;
+    flex: 0 0 auto;
   }
 
   .btn-voice {
-    width: 68px;
+    width: 62px;
+    height: 42px;
   }
 
   .btn-send {
-    min-width: 110px;
+    height: 42px;
+  }
+
+  .input-meta {
+    margin-left: 0;
+    flex: 0 0 auto;
+  }
+
+  .entry-text {
+    font-size: 0.96rem;
+    line-height: 1.6;
+  }
+}
+
+@media (max-width: 420px) {
+  .game-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .game-main,
+  .stats-panel {
+    border-radius: 14px;
+  }
+
+  .btn-icon {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 0.66rem;
+    letter-spacing: 0.05em;
+  }
+
+  .story-entry {
+    padding: 12px;
+  }
+
+  .entry-label {
+    font-size: 0.64rem;
+  }
+
+  .entry-time {
+    font-size: 0.62rem;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 901px) {
+  body {
+    overflow: auto;
+  }
+
+  .game-container {
+    min-height: 100dvh;
+    height: auto;
   }
 }
 

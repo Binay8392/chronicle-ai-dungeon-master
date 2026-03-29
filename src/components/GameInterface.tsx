@@ -29,6 +29,13 @@ function areStatsEqual(a: GameStats, b: GameStats): boolean {
   return a.inventory.every((item, index) => item === b.inventory[index]);
 }
 
+const QUICK_ACTIONS = [
+  'Scout the area for threats',
+  'Search for loot',
+  'Talk to nearby NPCs',
+  'Use an item from inventory',
+];
+
 export function GameInterface({
   character,
   theme,
@@ -48,6 +55,7 @@ export function GameInterface({
   const [ttsEnabled, setTtsEnabled] = useState(false);
 
   const cancelRef = useRef<(() => void) | null>(null);
+  const cancelRequestedRef = useRef(false);
   const storyRef = useRef<StoryEntry[]>(initialStory);
   const statsRef = useRef<GameStats>(initialStats);
   const generatingRef = useRef(false);
@@ -87,6 +95,7 @@ export function GameInterface({
   }, [stats, story, onProgress]);
 
   const handleCancelGeneration = () => {
+    cancelRequestedRef.current = true;
     cancelRef.current?.();
     cancelRef.current = null;
     generatingRef.current = false;
@@ -98,6 +107,7 @@ export function GameInterface({
 
     setGenerating(true);
     generatingRef.current = true;
+    cancelRequestedRef.current = false;
 
     try {
       const playerEntry: StoryEntry = {
@@ -125,11 +135,22 @@ export function GameInterface({
 
       let streamedText = '';
       for await (const token of stream) {
+        if (cancelRequestedRef.current) {
+          break;
+        }
         streamedText += token;
+      }
+
+      if (cancelRequestedRef.current) {
+        return;
       }
 
       const resolved = await result;
       const rawText = (resolved.text || streamedText || '').trim();
+
+      if (!rawText) {
+        return;
+      }
 
       const parsedChanges = parseStatChanges(rawText);
       const updatedStats = applyStatChanges(statsRef.current, parsedChanges);
@@ -156,6 +177,9 @@ export function GameInterface({
         await voice.speak(compliantResponse);
       }
     } catch {
+      if (cancelRequestedRef.current) {
+        return;
+      }
       const fallback: StoryEntry = {
         role: 'dm',
         text: enforceDMResponseRules(
@@ -169,6 +193,7 @@ export function GameInterface({
       storyRef.current = nextStory;
     } finally {
       cancelRef.current = null;
+      cancelRequestedRef.current = false;
       generatingRef.current = false;
       setGenerating(false);
     }
@@ -189,6 +214,10 @@ export function GameInterface({
   };
 
   const handleVoiceClick = async () => {
+    if (voice.isTranscribing) {
+      return;
+    }
+
     if (voice.isRecording) {
       voice.stopRecording();
       return;
@@ -198,6 +227,17 @@ export function GameInterface({
     if (transcript && transcript.trim()) {
       setInput(transcript.trim());
     }
+  };
+
+  const applyQuickAction = (action: string) => {
+    setInput((prev) => {
+      const current = prev.trim();
+      if (!current) return action;
+      if (current.endsWith('.') || current.endsWith('!') || current.endsWith('?')) {
+        return `${current} ${action}`;
+      }
+      return `${current}. ${action}`;
+    });
   };
 
   return (
@@ -215,6 +255,12 @@ export function GameInterface({
             <p className="game-subtitle">
               {character.name} the {character.race} {character.class} in a {theme.replace('-', ' ')} realm
             </p>
+            <div className="game-meta">
+              <span className="meta-pill">{story.length} entries</span>
+              <span className={`meta-pill ${ttsEnabled ? 'active' : ''}`}>
+                Narration {ttsEnabled ? 'On' : 'Off'}
+              </span>
+            </div>
           </div>
 
           <div className="game-controls">
@@ -259,7 +305,7 @@ export function GameInterface({
           </div>
         ) : (
           <>
-            <StoryLog story={story} />
+            <StoryLog story={story} playerName={character.name} />
 
             <form className="player-input" onSubmit={handleSend}>
               <div className="input-row">
@@ -267,10 +313,16 @@ export function GameInterface({
                   type="button"
                   className={`btn-voice ${voice.isRecording ? 'recording' : ''}`}
                   onClick={handleVoiceClick}
-                  title="Voice input"
-                  disabled={generating}
+                  title={
+                    voice.isTranscribing
+                      ? 'Transcribing voice'
+                      : voice.isRecording
+                        ? 'Stop recording'
+                        : 'Voice input'
+                  }
+                  disabled={generating || voice.isTranscribing}
                 >
-                  Mic
+                  {voice.isTranscribing ? '...' : voice.isRecording ? 'Stop' : 'Mic'}
                 </button>
                 <input
                   type="text"
@@ -278,12 +330,43 @@ export function GameInterface({
                   placeholder={`What does ${character.name} do next?`}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
+                  maxLength={220}
+                  aria-label="Describe your next action"
                   disabled={generating}
                 />
                 <button type="submit" className="btn-send" disabled={!input.trim() || generating}>
                   {generating ? 'Narrating...' : 'Act'}
                 </button>
               </div>
+              <div className="quick-actions" aria-label="Suggested actions">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    className="quick-chip"
+                    onClick={() => applyQuickAction(action)}
+                    disabled={generating || voice.isRecording || voice.isTranscribing}
+                  >
+                    {action}
+                  </button>
+                ))}
+                <span className="input-meta">{input.length}/220</span>
+              </div>
+              {voice.isRecording && (
+                <p className="voice-inline-hint">
+                  Listening... pause briefly to auto-stop, or tap Stop.
+                </p>
+              )}
+              {voice.isTranscribing && (
+                <p className="voice-inline-hint">
+                  Transcribing your voice...
+                </p>
+              )}
+              {voice.lastError && (
+                <p className="voice-inline-error" role="alert">
+                  {voice.lastError}
+                </p>
+              )}
             </form>
           </>
         )}

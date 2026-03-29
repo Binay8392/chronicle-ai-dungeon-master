@@ -11,10 +11,10 @@ export function WorldSetup({ onBegin }: WorldSetupProps) {
   const [race, setRace] = useState<CharacterRace>('elf');
   const [characterClass, setCharacterClass] = useState<CharacterClass>('warrior');
   const [theme, setTheme] = useState<WorldTheme>('fantasy');
+  const trimmedName = name.trim();
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmedName = name.trim();
     if (!trimmedName) return;
     onBegin({ name: trimmedName, race, class: characterClass }, theme);
   };
@@ -60,8 +60,14 @@ export function WorldSetup({ onBegin }: WorldSetupProps) {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={30}
+                autoFocus
+                aria-describedby="name-help"
                 required
               />
+              <div className="form-inline-row">
+                <p id="name-help" className="form-help">This name appears in every story turn.</p>
+                <span className="name-counter">{trimmedName.length}/30</span>
+              </div>
             </div>
 
             <div className="form-group">
@@ -122,9 +128,20 @@ export function WorldSetup({ onBegin }: WorldSetupProps) {
               </select>
             </div>
 
-            <button type="submit" className="btn-adventure" disabled={!name.trim()}>
-              Begin Adventure
-            </button>
+            <section className="setup-preview" aria-live="polite">
+              <h3>Current Build</h3>
+              <p><strong>Hero:</strong> {trimmedName || 'Unnamed wanderer'}</p>
+              <p><strong>Race:</strong> {RACE_DESCRIPTIONS[race]}</p>
+              <p><strong>Class:</strong> {CLASS_DESCRIPTIONS[characterClass]}</p>
+              <p><strong>Realm:</strong> {THEME_DESCRIPTIONS[theme]}</p>
+            </section>
+
+            <div className="setup-submit-row">
+              <button type="submit" className="btn-adventure" disabled={!trimmedName}>
+                Begin Adventure
+              </button>
+              <p className="setup-submit-hint">Tip: You can use voice input once the game starts.</p>
+            </div>
           </form>
         </div>
       </div>

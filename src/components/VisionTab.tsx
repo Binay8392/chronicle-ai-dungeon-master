@@ -33,11 +33,20 @@ export function VisionTab() {
   processingRef.current = processing;
   liveModeRef.current = liveMode;
 
+  const stopLive = useCallback(() => {
+    setLiveMode(false);
+    liveModeRef.current = false;
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current);
+      liveIntervalRef.current = null;
+    }
+  }, []);
+
   // ------------------------------------------------------------------
   // Camera
   // ------------------------------------------------------------------
-  const startCamera = useCallback(async () => {
-    if (captureRef.current?.isCapturing) return;
+  const startCamera = useCallback(async (): Promise<boolean> => {
+    if (captureRef.current?.isCapturing) return true;
 
     setError(null);
 
@@ -51,31 +60,44 @@ export function VisionTab() {
         const el = cam.videoElement;
         el.style.width = '100%';
         el.style.borderRadius = '12px';
-        mount.appendChild(el);
+        if (el.parentNode !== mount) {
+          mount.appendChild(el);
+        }
       }
 
       setCameraActive(true);
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      const normalized = msg.toLowerCase();
+      setCameraActive(false);
 
-      if (msg.includes('NotAllowed') || msg.includes('Permission')) {
+      if (normalized.includes('notallowed') || normalized.includes('permission')) {
         setError(
-          'Camera permission denied. On macOS, check System Settings → Privacy & Security → Camera and ensure your browser is allowed.',
+          'Camera permission denied. On macOS, check System Settings -> Privacy & Security -> Camera and ensure your browser is allowed.',
         );
-      } else if (msg.includes('NotFound') || msg.includes('DevicesNotFound')) {
+      } else if (normalized.includes('notfound') || normalized.includes('devicesnotfound')) {
         setError('No camera found on this device.');
-      } else if (msg.includes('NotReadable') || msg.includes('TrackStartError')) {
+      } else if (normalized.includes('notreadable') || normalized.includes('trackstarterror')) {
         setError('Camera is in use by another application.');
       } else {
         setError(`Camera error: ${msg}`);
       }
+
+      return false;
     }
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current);
+        liveIntervalRef.current = null;
+      }
+      liveModeRef.current = false;
+      processingRef.current = false;
+
       const cam = captureRef.current;
       if (cam) {
         cam.stop();
@@ -133,21 +155,23 @@ export function VisionTab() {
         setResult({ text: 'Recovering from memory error... next frame will retry.', totalMs: 0 });
       } else {
         setError(msg);
-        if (liveModeRef.current) stopLive();
+        if (liveModeRef.current) {
+          stopLive();
+        }
       }
     } finally {
       setProcessing(false);
       processingRef.current = false;
     }
-  }, [loader, prompt]);
+  }, [loader, prompt, stopLive]);
 
   // ------------------------------------------------------------------
   // Single-shot
   // ------------------------------------------------------------------
   const describeSingle = useCallback(async () => {
     if (!captureRef.current?.isCapturing) {
-      await startCamera();
-      return;
+      const started = await startCamera();
+      if (!started) return;
     }
     await describeFrame(SINGLE_MAX_TOKENS);
   }, [startCamera, describeFrame]);
@@ -157,37 +181,38 @@ export function VisionTab() {
   // ------------------------------------------------------------------
   const startLive = useCallback(async () => {
     if (!captureRef.current?.isCapturing) {
-      await startCamera();
+      const started = await startCamera();
+      if (!started) return;
+    }
+
+    if (!captureRef.current?.isCapturing) {
+      return;
+    }
+
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current);
+      liveIntervalRef.current = null;
     }
 
     setLiveMode(true);
     liveModeRef.current = true;
 
     // Immediately describe first frame
-    describeFrame(LIVE_MAX_TOKENS);
+    void describeFrame(LIVE_MAX_TOKENS);
 
-    // Then poll every 2.5s — skips ticks while inference is running
+    // Then poll every 2.5s - skips ticks while inference is running
     liveIntervalRef.current = setInterval(() => {
       if (!processingRef.current && liveModeRef.current) {
-        describeFrame(LIVE_MAX_TOKENS);
+        void describeFrame(LIVE_MAX_TOKENS);
       }
     }, LIVE_INTERVAL_MS);
   }, [startCamera, describeFrame]);
-
-  const stopLive = useCallback(() => {
-    setLiveMode(false);
-    liveModeRef.current = false;
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current);
-      liveIntervalRef.current = null;
-    }
-  }, []);
 
   const toggleLive = useCallback(() => {
     if (liveMode) {
       stopLive();
     } else {
-      startLive();
+      void startLive();
     }
   }, [liveMode, startLive, stopLive]);
 
@@ -207,7 +232,7 @@ export function VisionTab() {
       <div className="vision-camera">
         {!cameraActive && (
           <div className="empty-state">
-            <h3>📷 Camera Preview</h3>
+            <h3>Camera Preview</h3>
             <p>Tap below to start the camera</p>
           </div>
         )}
@@ -225,12 +250,12 @@ export function VisionTab() {
 
       <div className="vision-actions">
         {!cameraActive ? (
-          <button className="btn btn-primary" onClick={startCamera}>Start Camera</button>
+          <button className="btn btn-primary" onClick={() => { void startCamera(); }}>Start Camera</button>
         ) : (
           <>
             <button
               className="btn btn-primary"
-              onClick={describeSingle}
+              onClick={() => { void describeSingle(); }}
               disabled={processing || liveMode}
             >
               {processing && !liveMode ? 'Analyzing...' : 'Describe'}
@@ -240,7 +265,7 @@ export function VisionTab() {
               onClick={toggleLive}
               disabled={processing && !liveMode}
             >
-              {liveMode ? '⏹ Stop Live' : '▶ Live'}
+              {liveMode ? 'Stop Live' : 'Live'}
             </button>
           </>
         )}

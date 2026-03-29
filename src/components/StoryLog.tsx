@@ -3,9 +3,10 @@ import type { StoryEntry } from '../types/game';
 
 interface StoryLogProps {
   story: StoryEntry[];
+  playerName: string;
 }
 
-export function StoryLog({ story }: StoryLogProps) {
+export function StoryLog({ story, playerName }: StoryLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
   const lastAnimatedTimestampRef = useRef<number | null>(null);
   const [typingIndex, setTypingIndex] = useState<number | null>(null);
@@ -46,17 +47,22 @@ export function StoryLog({ story }: StoryLogProps) {
   }, [story]);
 
   return (
-    <div className="story-log" ref={logRef}>
+    <div className="story-log" ref={logRef} role="log" aria-live="polite" aria-label="Adventure story log">
+      <div className="story-log-head">
+        <span>Adventure Log</span>
+        <span>{story.length} entries</span>
+      </div>
       {story.map((entry, index) => {
         const isTyping = index === typingIndex;
         const text = isTyping ? displayText : entry.text;
-        const speaker = entry.role === 'dm' ? 'Dungeon Master' : 'Aragorn';
+        const speaker = entry.role === 'dm' ? 'Dungeon Master' : playerName;
+        const entryTime = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         return (
-          <article key={entry.timestamp} className={`story-entry ${entry.role}`}>
+          <article key={`${entry.timestamp}-${index}`} className={`story-entry ${entry.role}`}>
             <div className="entry-meta">
               <span className="entry-label">{speaker}</span>
-              <time className="entry-time">{new Date(entry.timestamp).toLocaleTimeString()}</time>
+              <time className="entry-time">{entryTime}</time>
             </div>
             <p className="entry-text">
               {text}
