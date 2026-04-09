@@ -254,7 +254,7 @@ Cross-Origin-Embedder-Policy: credentialless
 
 ## Credits
 
-- **Built for**: HackXtreme Hackathon 2026
+- Binay 
 - **AI SDK**: [RunAnywhere](https://runanywhere.ai)
 - **Fonts**: [Google Fonts](https://fonts.google.com) (Cinzel, Lora)
 - **Icons**: Unicode emoji
